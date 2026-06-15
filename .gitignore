@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / logs
+*.log
+
+# Whale
+.whale/output/server_*.log
+
+# System / CodeWhale
+%SystemDrive%/ProgramData/
+.deepseek/
+.whale/repo.json
+.whale/output/server_*.log
+
+# Binary / generated
+*.pdf
+.whale/inbox/
+.whale/output/
+!docs/
+
