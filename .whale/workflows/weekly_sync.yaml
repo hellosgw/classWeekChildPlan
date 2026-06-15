@@ -1,0 +1,267 @@
+# =============================================================================
+# weekly_sync.yaml — 自动化每周教学计划同步  (classWeekChildPlan)
+# =============================================================================
+# 目标：每周期自动完成"环境就绪 → 服务启动 → PDF 接入 → AI 生成
+#      → 结果归档"的完整同步闭环，减少手动重复操作。
+#
+# 使用方式：
+#   定时触发：每周一 08:00 自动执行（CodeWhale 调度器扫描 .whale/workflows/ 触发）
+#   手动调试：codewhale exec -p "运行 weekly_sync 工作流"
+#            或直接在工作区执行各步骤对应的 shell 命令
+#
+# 依赖：
+#   - .env 文件需配置 DEEPSEEK_API_KEY
+#   - Python 依赖见 backend/requirements.txt
+# =============================================================================
+
+name: weekly_sync
+description: >
+  每周教学计划同步工作流。
+  自动检查环境健康、启动后端、扫描 PDF 输入目录并调用 DeepSeek API 生成
+  家庭同步计划，最终将 Markdown 结果归档到本地。
+
+# ── 触发条件 ──────────────────────────────────────────────────────────────────
+trigger:
+  # 定时触发：每周一 08:00（可修改 cron 表达式适配实际排课节奏）
+  schedule: "0 8 * * 1"
+  # 手动触发：由 CodeWhale 内部调度器识别并执行
+  manual: true
+
+# ── 全局环境变量 ──────────────────────────────────────────────────────────────
+env:
+  PROJECT_ROOT:   "{{ workspace }}"
+  BACKEND_DIR:    "{{ workspace }}/backend"
+  FRONTEND_DIR:   "{{ workspace }}/frontend"
+  OUTPUT_DIR:     "{{ workspace }}/.whale/output/weekly_plans"
+  PDF_WATCH_DIR:  "{{ workspace }}/.whale/inbox"     # 放置待处理 PDF 的目录
+  BACKEND_HOST:   "0.0.0.0"
+  BACKEND_PORT:   "8000"
+  DEEPSEEK_MODEL: "deepseek-chat"
+
+# ── 步骤定义 ──────────────────────────────────────────────────────────────────
+steps:
+
+  # ---------------------------------------------------------------------------
+  # Step 1: 环境检查
+  # ---------------------------------------------------------------------------
+  - name: 环境检查
+    desc: 检查 Python、关键依赖和 DEEPSEEK_API_KEY 是否就绪
+    shell: |
+      Write-Host "=== [1/6] 环境检查 ===" -ForegroundColor Cyan
+
+      # Python 版本
+      $pyVer = python --version 2>&1
+      Write-Host "  Python : $pyVer"
+
+      # 关键依赖
+      $deps = @("fastapi", "openai", "PyPDF2", "pdfplumber", "uvicorn")
+      $missing = @()
+      foreach ($dep in $deps) {
+        $ver = pip show $dep 2>$null | Select-String "^Version:"
+        if ($ver) {
+          Write-Host "  ✅ $dep $($ver -replace 'Version: ','')"
+        } else {
+          Write-Host "  ❌ $dep 未安装" -ForegroundColor Red
+          $missing += $dep
+        }
+      }
+
+      # API Key
+      if (Test-Path "$env:BACKEND_DIR/../.env") {
+        Write-Host "  ✅ .env 文件存在"
+      } else {
+        Write-Host "  ⚠️  .env 文件不存在，请从 .env.example 复制" -ForegroundColor Yellow
+      }
+
+      if ($missing.Count -gt 0) {
+        Write-Host "  ❌ 缺少依赖: $($missing -join ', ')" -ForegroundColor Red
+        exit 1
+      }
+
+      Write-Host "  ✅ 环境就绪" -ForegroundColor Green
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Git 同步
+  # ---------------------------------------------------------------------------
+  - name: 拉取最新代码
+    desc: 从远端拉取最新变更，确保运行的是最新版本
+    shell: |
+      Write-Host "=== [2/6] 拉取最新代码 ===" -ForegroundColor Cyan
+      git fetch --prune
+      $behind = git rev-list --count HEAD..@{u} 2>$null
+      if ($behind -and $behind -gt 0) {
+        Write-Host "  远端有 $behind 个新提交，执行 rebase..."
+        git pull --rebase
+        Write-Host "  ✅ 代码已更新"
+      } else {
+        Write-Host "  本地已是最新，无需拉取"
+      }
+
+  # ---------------------------------------------------------------------------
+  # Step 3: 准备目录与配置
+  # ---------------------------------------------------------------------------
+  - name: 准备目录
+    desc: 创建 PDF 收件箱、输出归档目录
+    shell: |
+      Write-Host "=== [3/6] 准备目录 ===" -ForegroundColor Cyan
+      $dirs = @(
+        "$env:OUTPUT_DIR",
+        "$env:PDF_WATCH_DIR"
+      )
+      foreach ($d in $dirs) {
+        if (-not (Test-Path $d)) {
+          New-Item -ItemType Directory -Path $d -Force | Out-Null
+          Write-Host "  📁 创建 $d"
+        } else {
+          Write-Host "  ✅ $d 已存在"
+        }
+      }
+
+  # ---------------------------------------------------------------------------
+  # Step 4: 启动后端服务
+  # ---------------------------------------------------------------------------
+  - name: 启动后端服务
+    desc: 启动 FastAPI 开发服务器（若已在运行则跳过）
+    shell: |
+      Write-Host "=== [4/6] 启动后端服务 ===" -ForegroundColor Cyan
+
+      # 检查端口是否已被占用
+      $portCheck = netstat -an | Select-String ":$env:BACKEND_PORT\s"
+      if ($portCheck) {
+        Write-Host "  ℹ️  端口 $env:BACKEND_PORT 已被占用，服务可能已在运行"
+        # 做一次健康确认
+        try {
+          $resp = Invoke-WebRequest -Uri "http://localhost:$env:BACKEND_PORT/api/health" -TimeoutSec 5 -UseBasicParsing
+          if ($resp.StatusCode -eq 200) {
+            Write-Host "  ✅ 后端服务健康可用"
+            exit 0
+          }
+        } catch {
+          Write-Host "  ⚠️  端口被占用但响应异常，尝试重启..." -ForegroundColor Yellow
+        }
+      }
+
+      # 启动服务（后台运行）
+      $logFile = "$env:PROJECT_ROOT/.whale/output/server_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+      $process = Start-Process -NoNewWindow -PassThru -FilePath "uvicorn" -ArgumentList @(
+        "app:app",
+        "--host", "$env:BACKEND_HOST",
+        "--port", "$env:BACKEND_PORT",
+        "--log-level", "info"
+      ) -WorkingDirectory "$env:BACKEND_DIR" -RedirectStandardOutput $logFile -RedirectStandardError $logFile
+
+      Write-Host "  🚀 后端服务已启动 (PID: $($process.Id))"
+      Write-Host "  📋 日志: $logFile"
+
+      # 等待服务就绪
+      Start-Sleep -Seconds 4
+      try {
+        $resp = Invoke-WebRequest -Uri "http://localhost:$env:BACKEND_PORT/api/health" -TimeoutSec 5 -UseBasicParsing
+        Write-Host "  ✅ 健康检查通过 (HTTP $($resp.StatusCode))"
+      } catch {
+        Write-Host "  ⚠️  健康检查未通过，请稍后手动验证: $($_.Exception.Message)" -ForegroundColor Yellow
+      }
+
+  # ---------------------------------------------------------------------------
+  # Step 5: PDF 自动处理（核心同步步骤）
+  # ---------------------------------------------------------------------------
+  - name: PDF 同步处理
+    desc: 扫描 PDF 收件箱，逐个调用 API 生成计划并归档
+    shell: |
+      Write-Host "=== [5/6] PDF 同步处理 ===" -ForegroundColor Cyan
+
+      $pdfFiles = Get-ChildItem -Path "$env:PDF_WATCH_DIR" -Filter "*.pdf" | Sort-Object LastWriteTime
+      $count = $pdfFiles.Count
+
+      if ($count -eq 0) {
+        Write-Host "  📭 PDF 收件箱为空，跳过处理" -ForegroundColor Yellow
+        Write-Host "  💡 请将幼儿园周计划 PDF 放入: $env:PDF_WATCH_DIR"
+        Write-Host "     或访问 http://localhost:$env:BACKEND_PORT 手动上传"
+        exit 0
+      }
+
+      Write-Host "  发现 $count 个待处理 PDF" -ForegroundColor Green
+      $successCount = 0
+
+      foreach ($pdf in $pdfFiles) {
+        Write-Host "  ── 处理: $($pdf.Name) ──" -ForegroundColor Magenta
+        try {
+          # 调用后端 API
+          $form = @{ file = Get-Item -Path $pdf.FullName }
+          $resp = Invoke-WebRequest -Uri "http://localhost:$env:BACKEND_PORT/api/generate-plan" `
+            -Method POST `
+            -Form $form `
+            -TimeoutSec 120 `
+            -UseBasicParsing
+
+          if ($resp.StatusCode -eq 200) {
+            $plan = ($resp.Content | ConvertFrom-Json).plan
+            $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+            $outPath = "$env:OUTPUT_DIR/plan_$($pdf.BaseName)_$timestamp.md"
+            $plan | Out-File -FilePath $outPath -Encoding UTF8
+            Write-Host "  ✅ 计划已保存: $outPath" -ForegroundColor Green
+            $successCount++
+
+            # 处理完毕，移入 done 子目录
+            $doneDir = "$env:PDF_WATCH_DIR/_done"
+            if (-not (Test-Path $doneDir)) { New-Item -ItemType Directory -Path $doneDir -Force | Out-Null }
+            Move-Item -Path $pdf.FullName -Destination "$doneDir/$($pdf.Name)" -Force
+          } else {
+            Write-Host "  ❌ API 返回 HTTP $($resp.StatusCode): $($resp.Content)" -ForegroundColor Red
+          }
+        } catch {
+          Write-Host "  ❌ 处理失败: $($_.Exception.Message)" -ForegroundColor Red
+        }
+      }
+
+      Write-Host "  ── 完成: $successCount / $count 处理成功 ──" -ForegroundColor Green
+
+  # ---------------------------------------------------------------------------
+  # Step 6: 输出汇总报告
+  # ---------------------------------------------------------------------------
+  - name: 输出同步报告
+    desc: 汇总本次同步结果，列出生成的计划和待办事项
+    shell: |
+      Write-Host "=== [6/6] 同步报告 ===" -ForegroundColor Cyan
+
+      $planFiles = Get-ChildItem -Path "$env:OUTPUT_DIR" -Filter "*.md" | Sort-Object LastWriteTime -Descending
+      $totalPlans = $planFiles.Count
+
+      Write-Host ""
+      Write-Host "  ╔═══════════════════════════════════════════╗"
+      Write-Host "  ║       本周教学计划同步报告                ║"
+      Write-Host "  ╠═══════════════════════════════════════════╣"
+      Write-Host "  ║  时间: $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+      Write-Host "  ║  模型: $env:DEEPSEEK_MODEL"
+      Write-Host "  ║  后端: http://localhost:$env:BACKEND_PORT"
+      Write-Host "  ║  累计计划: $totalPlans 份"
+      Write-Host "  ║  收件箱: $env:PDF_WATCH_DIR"
+      Write-Host "  ║  归档: $env:OUTPUT_DIR"
+      Write-Host "  ╚═══════════════════════════════════════════╝"
+      Write-Host ""
+
+      if ($totalPlans -gt 0) {
+        Write-Host "  📄 最近生成的计划:" -ForegroundColor Cyan
+        $planFiles | Select-Object -First 5 | ForEach-Object {
+          $size = "{0:N1} KB" -f ($_.Length / 1KB)
+          Write-Host "    • $($_.Name)  ($size, $($_.LastWriteTime.ToString('MM-dd HH:mm')))"
+        }
+        if ($totalPlans -gt 5) {
+          Write-Host "    ... 还有 $($totalPlans - 5) 份历史计划"
+        }
+      } else {
+        Write-Host "  📭 暂无已生成的计划" -ForegroundColor Yellow
+        Write-Host "  将 PDF 放入收件箱或访问前端手动上传即可开始。" -ForegroundColor Yellow
+      }
+
+      Write-Host ""
+      Write-Host "  💡 下一步建议:" -ForegroundColor Cyan
+      Write-Host "  1. 访问 http://localhost:$env:BACKEND_PORT 预览/保存计划卡片"
+      Write-Host "  2. 将下周 PDF 放入 $env:PDF_WATCH_DIR 触发自动处理"
+      Write-Host "  3. 查看归档: $env:OUTPUT_DIR"
+      Write-Host ""
+
+# ── 通知配置（可选） ──────────────────────────────────────────────────────────
+notify:
+  on_success: "✅ 每周教学计划同步完成！共处理 {{steps.pdf_sync.processed}} 份 PDF。"
+  on_failure: "❌ 每周教学计划同步失败，请检查日志。"
