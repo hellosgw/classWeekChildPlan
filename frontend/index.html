@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>家园共育 · 周计划生成器</title>
+<!-- marked.js for Markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<!-- html2canvas for saving as image -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+:root {
+  --cream: #FFF8F0;
+  --peach: #FFE4D6;
+  --warm-orange: #F4976C;
+  --deep-teal: #3D5A80;
+  --soft-green: #98C1A2;
+  --text: #3D3D3D;
+  --card-shadow: 0 4px 24px rgba(244, 151, 108, 0.12);
+  --radius: 16px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--cream);
+  color: var(--text);
+  min-height: 100dvh;
+  line-height: 1.7;
+}
+/* ── Header ─────────────────────────────────────────── */
+header {
+  text-align: center;
+  padding: 40px 20px 20px;
+}
+header h1 {
+  font-size: 28px;
+  color: var(--warm-orange);
+  letter-spacing: 2px;
+}
+header p {
+  font-size: 14px;
+  color: #999;
+  margin-top: 6px;
+}
+/* ── Upload Zone ────────────────────────────────────── */
+.upload-zone {
+  max-width: 520px;
+  margin: 0 auto 32px;
+  padding: 48px 20px;
+  border: 2px dashed var(--peach);
+  border-radius: var(--radius);
+  text-align: center;
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  background: var(--peach);
+  border-color: var(--warm-orange);
+}
+.upload-zone .icon { font-size: 48px; margin-bottom: 12px; }
+.upload-zone .label { font-size: 16px; color: var(--warm-orange); font-weight: 600; }
+.upload-zone .hint  { font-size: 13px; color: #aaa; margin-top: 6px; }
+.upload-zone input[type=file] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+/* ── Status Bar ─────────────────────────────────────── */
+.status-bar {
+  max-width: 520px;
+  margin: 0 auto 24px;
+  text-align: center;
+}
+.spinner {
+  display: inline-block;
+  width: 32px; height: 32px;
+  border: 3px solid var(--peach);
+  border-top-color: var(--warm-orange);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  margin-bottom: 10px;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.error-msg {
+  color: #e06060;
+  background: #fff0f0;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+/* ── Plan Cards Container ───────────────────────────── */
+#plan-container {
+  max-width: 640px;
+  margin: 0 auto 40px;
+  padding: 0 16px;
+  display: none;
+}
+#plan-container.visible { display: block; }
+
+/* ── Plan Card ──────────────────────────────────────── */
+.plan-card {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: 28px 24px;
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.plan-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 6px; height: 100%;
+  background: var(--warm-orange);
+  border-radius: 3px 0 0 3px;
+}
+.plan-card h2 {
+  font-size: 18px;
+  color: var(--deep-teal);
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+}
+.plan-card h3 {
+  font-size: 15px;
+  color: var(--warm-orange);
+  margin: 16px 0 6px;
+}
+.plan-card p { font-size: 14px; margin: 4px 0; }
+.plan-card ul, .plan-card ol { padding-left: 20px; margin: 6px 0; }
+.plan-card li { font-size: 14px; margin: 2px 0; }
+.plan-card strong { color: var(--deep-teal); }
+.plan-card .time-tag {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.time-tag.self   { background: #E8F5E9; color: #388E3C; }
+.time-tag.golden { background: #FFF3E0; color: #E65100; }
+.time-tag.weekend { background: #E3F2FD; color: #1565C0; }
+
+/* ── Save Button ────────────────────────────────────── */
+.save-bar {
+  max-width: 640px;
+  margin: 0 auto 40px;
+  padding: 0 16px;
+  display: none;
+}
+.save-bar.visible { display: block; }
+.btn-save {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: var(--warm-orange);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s;
+}
+.btn-save:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(244,151,108,.35); }
+.btn-save:active { transform: scale(.98); }
+
+/* ── Footer ─────────────────────────────────────────── */
+footer {
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  color: #ccc;
+}
+/* ── History Sidebar ──────────────────────────────────── */
+.history-btn {
+  position: fixed; right: 20px; top: 20px;
+  width: 48px; height: 48px;
+  border-radius: 50%; border: none;
+  background: var(--warm-orange); color: #fff;
+  font-size: 22px; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(244,151,108,.3);
+  z-index: 100; transition: transform .15s;
+}
+.history-btn:hover { transform: scale(1.05); }
+
+.history-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.35);
+  z-index: 200; display: none;
+  animation: fadeIn .2s;
+}
+.history-overlay.open { display: block; }
+
+.history-panel {
+  position: fixed; top: 0; right: 0;
+  width: 340px; height: 100%;
+  background: #fff; z-index: 201;
+  display: none; flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0,0,0,.1);
+  animation: slideIn .3s;
+}
+.history-panel.open { display: flex; }
+
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes slideIn { from{transform:translateX(100%)} to{transform:translateX(0)} }
+
+.history-header {
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.history-header h2 { font-size: 18px; color: var(--deep-teal); margin: 0; }
+.history-close {
+  width: 36px; height: 36px; border: none; background: none;
+  font-size: 24px; cursor: pointer; color: #999;
+}
+
+.history-list {
+  flex: 1; overflow-y: auto; padding: 12px 16px;
+}
+.history-item {
+  padding: 14px 12px; border-radius: 10px;
+  border: 1px solid #f0f0f0; margin-bottom: 10px;
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.history-item:hover { background: var(--cream); border-color: var(--warm-orange); }
+.history-item .hi-title { font-weight: 600; font-size: 14px; color: var(--deep-teal); }
+.history-item .hi-meta { font-size: 12px; color: #999; margin-top: 4px; }
+.history-item .hi-preview {
+  font-size: 13px; color: #666; margin-top: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-empty {
+  text-align: center; padding: 60px 20px;
+  color: #ccc; font-size: 14px;
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+@media (max-width: 480px) {
+  header h1 { font-size: 22px; }
+  .plan-card { padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏠 家园共育</h1>
+  <p>上传幼儿园周活动计划 PDF · AI 自动生成家庭同步方案</p>
+</header>
+
+<!-- Upload -->
+<div class="upload-zone" id="upload-zone">
+  <div class="icon">📄</div>
+  <div class="label">点击上传或拖拽 PDF 到此处</div>
+  <div class="hint">支持 .pdf · 最大 10 MB</div>
+  <input type="file" id="file-input" accept=".pdf,application/pdf">
+</div>
+
+<!-- Status -->
+<div class="status-bar" id="status-bar"></div>
+
+<!-- Plan Cards -->
+<div id="plan-container"></div>
+
+<!-- Save -->
+<div class="save-bar" id="save-bar">
+  <button class="btn-save" id="btn-save">📸 保存到手机相册</button>
+</div>
+
+<button class="history-btn" id="history-btn" title="历史记录">📖</button>
+
+<div class="history-overlay" id="history-overlay"></div>
+<div class="history-panel" id="history-panel">
+  <div class="history-header">
+    <h2>📋 历史记录</h2>
+    <button class="history-close" id="history-close">✕</button>
+  </div>
+  <div class="history-list" id="history-list"></div>
+</div>
+
+<footer>classWeekChildPlan · Powered by DeepSeek</footer>
+
+<script>
+// ── Elements ──────────────────────────────────────────
+const uploadZone = document.getElementById('upload-zone');
+const fileInput  = document.getElementById('file-input');
+const statusBar  = document.getElementById('status-bar');
+const planContainer = document.getElementById('plan-container');
+const saveBar    = document.getElementById('save-bar');
+const btnSave    = document.getElementById('btn-save');
+
+// Drag & drop
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (file) handleFile(file);
+});
+
+let currentPlanMarkdown = '';
+
+// ── Handle upload ─────────────────────────────────────
+async function handleFile(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    showError('请上传 PDF 文件');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showError('文件不能超过 10 MB');
+    return;
+  }
+
+  // Show spinner
+  statusBar.innerHTML = '<div class="spinner"></div><p style="color:#999;">AI 正在为你生成周计划…</p>';
+  planContainer.classList.remove('visible');
+  saveBar.classList.remove('visible');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/api/generate-plan', { method: 'POST', body: formData });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || '服务器错误');
+    }
+    const data = await resp.json();
+    currentPlanMarkdown = data.plan || '';
+    if (!currentPlanMarkdown.trim()) {
+      showError('AI 返回内容为空，请重试');
+      return;
+    }
+    renderPlan(currentPlanMarkdown);
+    // Auto-save to localStorage history
+    savePlanToHistory(data.plan_id || '', currentPlanMarkdown, file.name);
+    statusBar.innerHTML = '';
+    planContainer.classList.add('visible');
+    saveBar.classList.add('visible');
+  } catch (err) {
+    showError(err.message || '请求失败，请检查网络');
+  }
+}
+
+// ── Render Markdown → beautiful cards ─────────────────
+function renderPlan(md) {
+  // Parse with marked
+  marked.setOptions({ breaks: true, gfm: true });
+  const html = marked.parse(md);
+
+  // Wrap into card structure
+  planContainer.innerHTML = `
+    <div class="plan-card" id="plan-content">
+      ${html
+        .replace(/<h2>/g, '<h2>📋 ')
+        .replace(/<h3>18:30/g, '<span class="time-tag self">🎨 自主探索模式</span><h3>⏰ 18:30')
+        .replace(/<h3>20:00/g, '<span class="time-tag golden">💛 深度连接模式</span><h3>⏰ 20:00')
+      }
+    </div>`;
+}
+
+function showError(msg) {
+  statusBar.innerHTML = `<div class="error-msg">❌ ${msg}</div>`;
+  planContainer.classList.remove('visible');
+  saveBar.classList.remove('visible');
+}
+
+// ── History (localStorage persistence) ──────────────────
+const HISTORY_KEY = 'weekly_plan_history';
+
+function savePlanToHistory(planId, planMarkdown, pdfName) {
+  const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  const lines = planMarkdown.trim().split('\n');
+  let preview = '';
+  for (const line of lines) {
+    const s = line.trim();
+    if (s && !s.startsWith('#') && !s.startsWith('>') && s !== '---') {
+      preview = s.substring(0, 80);
+      break;
+    }
+  }
+  history.unshift({
+    id: planId,
+    createdAt: new Date().toISOString(),
+    pdfName: pdfName,
+    title: pdfName.replace('.pdf', ''),
+    preview: preview,
+    plan: planMarkdown
+  });
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  renderHistoryList();
+}
+
+function renderHistoryList() {
+  const list = document.getElementById('history-list');
+  const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  if (history.length === 0) {
+    list.innerHTML = '<div class="history-empty">📭 暂无历史记录<br><span style="font-size:12px;">上传 PDF 生成计划后自动保存</span></div>';
+    return;
+  }
+  list.innerHTML = history.map((item, idx) => `
+    <div class="history-item" data-idx="${idx}">
+      <div class="hi-title">📄 ${escapeHtml(item.title)}</div>
+      <div class="hi-meta">${new Date(item.createdAt).toLocaleString('zh-CN')} · ${escapeHtml(item.pdfName)}</div>
+      ${item.preview ? `<div class="hi-preview">${escapeHtml(item.preview)}</div>` : ''}
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.history-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.idx);
+      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      if (history[idx]) {
+        currentPlanMarkdown = history[idx].plan;
+        renderPlan(currentPlanMarkdown);
+        planContainer.classList.add('visible');
+        saveBar.classList.add('visible');
+        statusBar.innerHTML = '';
+        closeHistory();
+      }
+    });
+  });
+}
+
+function openHistory() {
+  renderHistoryList();
+  document.getElementById('history-overlay').classList.add('open');
+  document.getElementById('history-panel').classList.add('open');
+}
+
+function closeHistory() {
+  document.getElementById('history-overlay').classList.remove('open');
+  document.getElementById('history-panel').classList.remove('open');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// History event listeners
+document.getElementById('history-btn').addEventListener('click', openHistory);
+document.getElementById('history-close').addEventListener('click', closeHistory);
+document.getElementById('history-overlay').addEventListener('click', closeHistory);
+
+// ── Save as image ─────────────────────────────────────
+btnSave.addEventListener('click', async () => {
+  const card = document.getElementById('plan-content');
+  if (!card) return;
+
+  btnSave.textContent = '⏳ 生成中…';
+  btnSave.disabled = true;
+
+  try {
+    const canvas = await html2canvas(card, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+    });
+
+    // Trigger download
+    const link = document.createElement('a');
+    link.download = `家园共育周计划_${new Date().toISOString().slice(0,10)}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+
+    // For mobile: also open in new tab so user can long-press save
+    if (/Mobi|Android/i.test(navigator.userAgent)) {
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(`<img src="${canvas.toDataURL()}" style="width:100%;" />`);
+        win.document.title = '长按图片保存到相册';
+      }
+    }
+  } catch (err) {
+    alert('保存失败：' + err.message);
+  } finally {
+    btnSave.textContent = '📸 保存到手机相册';
+    btnSave.disabled = false;
+  }
+});
+
+// ── Init ──────────────────────────────────────────────
+// Load history list on page start
+renderHistoryList();
+</script>
+
+</body>
+</html>
