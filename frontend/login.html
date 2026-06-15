@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>登录 · 家园共育</title>
+<style>
+/* ═══════════════════════════════════════════════════════
+   CSS Variables — inherited from project design system
+   ═══════════════════════════════════════════════════════ */
+:root {
+  --cream: #FFF8F0;
+  --peach: #FFE4D6;
+  --warm-orange: #F4976C;
+  --deep-teal: #3D5A80;
+  --soft-green: #98C1A2;
+  --text: #3D3D3D;
+  --card-shadow: 0 4px 24px rgba(244, 151, 108, 0.12);
+  --radius: 16px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(160deg, #FFF8F0 0%, #FFE4D6 40%, #FDE8D0 70%, #FFF8F0 100%);
+  color: var(--text);
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Decorative floating elements
+   ═══════════════════════════════════════════════════════ */
+.bg-decoration {
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.12;
+  font-size: 80px;
+  animation: float 12s ease-in-out infinite;
+}
+.bg-decoration:nth-child(1) { top: 6%;  left: 5%;  animation-delay: 0s;   font-size: 60px; }
+.bg-decoration:nth-child(2) { top: 12%; right: 8%;  animation-delay: -3s;  font-size: 90px; }
+.bg-decoration:nth-child(3) { top: 70%; left: 4%;  animation-delay: -6s;  font-size: 70px; }
+.bg-decoration:nth-child(4) { top: 78%; right: 6%;  animation-delay: -9s;  font-size: 56px; }
+.bg-decoration:nth-child(5) { top: 50%; left: 50%; animation-delay: -1.5s; font-size: 48px; opacity: 0.06; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  25%      { transform: translateY(-18px) rotate(3deg) scale(1.06); }
+  50%      { transform: translateY(-8px) rotate(-2deg) scale(0.96); }
+  75%      { transform: translateY(-22px) rotate(4deg) scale(1.03); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Login Card
+   ═══════════════════════════════════════════════════════ */
+.login-wrapper {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  margin: 20px;
+}
+
+.login-card {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: 0 8px 40px rgba(244, 151, 108, 0.16),
+              0 2px 8px rgba(61, 90, 128, 0.06);
+  padding: 44px 36px 36px;
+  position: relative;
+  overflow: hidden;
+  animation: cardEnter .6s cubic-bezier(.22, .61, .36, 1);
+}
+
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(30px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Left accent bar — matching plan-card::before */
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 6px; height: 100%;
+  background: linear-gradient(180deg, var(--warm-orange), var(--soft-green));
+  border-radius: 3px 0 0 3px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Logo / Title section
+   ═══════════════════════════════════════════════════════ */
+.login-logo {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-logo .icon-row {
+  font-size: 52px;
+  margin-bottom: 10px;
+  letter-spacing: 4px;
+  animation: bounceIn .7s .15s both;
+}
+
+@keyframes bounceIn {
+  0%   { transform: scale(0); }
+  50%  { transform: scale(1.15); }
+  70%  { transform: scale(.94); }
+  100% { transform: scale(1); }
+}
+
+.login-logo h1 {
+  font-size: 26px;
+  color: var(--warm-orange);
+  letter-spacing: 3px;
+  font-weight: 700;
+}
+
+.login-logo .subtitle {
+  font-size: 13px;
+  color: #aaa;
+  margin-top: 6px;
+  letter-spacing: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Form fields
+   ═══════════════════════════════════════════════════════ */
+.form-group {
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--deep-teal);
+  margin-bottom: 6px;
+  letter-spacing: .5px;
+}
+
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrap .input-icon {
+  position: absolute;
+  left: 14px;
+  font-size: 18px;
+  pointer-events: none;
+  transition: transform .25s;
+  z-index: 1;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"] {
+  width: 100%;
+  padding: 13px 16px 13px 44px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--cream);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  outline: none;
+  transition: border-color .25s, box-shadow .25s, background .25s;
+}
+
+.form-group input::placeholder {
+  color: #c4b8ad;
+}
+
+.form-group input:focus {
+  border-color: var(--warm-orange);
+  box-shadow: 0 0 0 4px rgba(244, 151, 108, 0.12);
+  background: #fff;
+}
+
+.form-group input:focus + .focus-indicator,
+.form-group input:focus ~ .focus-indicator {
+  /* handled via sibling — see input-wrap layout */
+}
+
+/* Focus ring animation helper */
+.input-wrap::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 0; height: 2px;
+  background: var(--warm-orange);
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+
+.form-group input:focus ~ .input-wrap::after,
+.input-wrap:has(input:focus)::after {
+  width: calc(100% - 28px);
+}
+
+/* Shake animation on error */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+.shake { animation: shake .45s ease; }
+
+/* ═══════════════════════════════════════════════════════
+   Row: Remember me + Forgot password
+   ═══════════════════════════════════════════════════════ */
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+  color: #888;
+}
+
+.remember-me input[type="checkbox"] {
+  display: none;
+}
+
+.custom-check {
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+  border: 2px solid #d6cdc4;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+  font-size: 11px;
+  color: transparent;
+}
+
+.remember-me input:checked + .custom-check {
+  background: var(--warm-orange);
+  border-color: var(--warm-orange);
+  color: #fff;
+}
+
+.forgot-link {
+  color: var(--warm-orange);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color .2s;
+}
+.forgot-link:hover { color: #d87a52; }
+
+/* ═══════════════════════════════════════════════════════
+   Login Button
+   ═══════════════════════════════════════════════════════ */
+.btn-login {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--warm-orange), #F7A87E);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: transform .18s, box-shadow .18s, background .25s;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-login:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(244, 151, 108, .38);
+}
+
+.btn-login:active {
+  transform: scale(.97);
+}
+
+.btn-login.loading {
+  pointer-events: none;
+  color: transparent;
+}
+
+.btn-login.loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 22px; height: 22px;
+  border: 2.5px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════
+   Extra links
+   ═══════════════════════════════════════════════════════ */
+.extra-links {
+  text-align: center;
+  margin-top: 22px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.extra-links a {
+  color: var(--deep-teal);
+  text-decoration: none;
+  font-weight: 600;
+  margin: 0 4px;
+  transition: color .2s;
+}
+.extra-links a:hover { color: var(--warm-orange); }
+
+/* ═══════════════════════════════════════════════════════
+   Demo hint
+   ═══════════════════════════════════════════════════════ */
+.demo-hint {
+  text-align: center;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: var(--cream);
+  border-radius: 10px;
+  font-size: 12px;
+  color: #b0a397;
+  letter-spacing: .5px;
+  border: 1px dashed var(--peach);
+}
+
+.demo-hint strong {
+  color: var(--warm-orange);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Toast notification
+   ═══════════════════════════════════════════════════════ */
+.toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-120px);
+  background: #fff;
+  color: var(--text);
+  padding: 12px 24px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.12);
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 100;
+  transition: transform .35s cubic-bezier(.22, .61, .36, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast.error {
+  border-left: 4px solid #e06060;
+  color: #c0392b;
+}
+
+.toast.success {
+  border-left: 4px solid var(--soft-green);
+  color: #2d6a4f;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Responsive: Mobile (≤480px)
+   ═══════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 32px 22px 28px;
+    border-radius: 14px;
+  }
+
+  .login-logo .icon-row { font-size: 42px; }
+  .login-logo h1 { font-size: 22px; letter-spacing: 2px; }
+
+  .form-group input[type="text"],
+  .form-group input[type="password"] {
+    padding: 12px 14px 12px 40px;
+    font-size: 14px;
+  }
+
+  .btn-login {
+    padding: 13px;
+    font-size: 15px;
+    letter-spacing: 1px;
+  }
+
+  .form-row { flex-direction: column; gap: 10px; align-items: flex-start; }
+
+  .bg-decoration { font-size: 48px !important; }
+  .bg-decoration:nth-child(1) { font-size: 40px !important; }
+  .bg-decoration:nth-child(2) { font-size: 56px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Footer
+   ═══════════════════════════════════════════════════════ */
+.login-footer {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 12px;
+  color: #ccc;
+  letter-spacing: .5px;
+}
+</style>
+</head>
+<body>
+
+<!-- Decorative floating emojis -->
+<div class="bg-decoration">🏠</div>
+<div class="bg-decoration">🌈</div>
+<div class="bg-decoration">🧸</div>
+<div class="bg-decoration">🌻</div>
+<div class="bg-decoration">💛</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Login Card -->
+<div class="login-wrapper">
+  <div class="login-card">
+
+    <!-- Logo -->
+    <div class="login-logo">
+      <div class="icon-row">🏠💛👶</div>
+      <h1>家园共育</h1>
+      <p class="subtitle">周计划生成器 · 登录</p>
+    </div>
+
+    <!-- Form -->
+    <form id="login-form" autocomplete="off" novalidate>
+
+      <!-- Username -->
+      <div class="form-group" id="group-username">
+        <label>👤 用户名</label>
+        <div class="input-wrap">
+          <span class="input-icon">👤</span>
+          <input
+            type="text"
+            id="username"
+            placeholder="请输入用户名"
+            autocomplete="username"
+          >
+        </div>
+      </div>
+
+      <!-- Password -->
+      <div class="form-group" id="group-password">
+        <label>🔒 密码</label>
+        <div class="input-wrap">
+          <span class="input-icon">🔒</span>
+          <input
+            type="password"
+            id="password"
+            placeholder="请输入密码"
+            autocomplete="current-password"
+          >
+        </div>
+      </div>
+
+      <!-- Remember + Forgot -->
+      <div class="form-row">
+        <label class="remember-me">
+          <input type="checkbox" id="remember">
+          <span class="custom-check">✓</span>
+          <span>记住我</span>
+        </label>
+        <a class="forgot-link" href="javascript:void(0)" id="forgot-link">忘记密码？</a>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" class="btn-login" id="btn-login">登 录</button>
+
+    </form>
+
+    <!-- Register link -->
+    <div class="extra-links">
+      还没有账号？<a href="javascript:void(0)" id="register-link">立即注册</a>
+    </div>
+
+    <!-- Demo hint -->
+    <div class="demo-hint">
+      🧪 演示账号 <strong>admin</strong> / <strong>123456</strong>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="login-footer">classWeekChildPlan · Powered by DeepSeek</div>
+</div>
+
+<script>
+// ── Elements ──────────────────────────────────────────
+const form         = document.getElementById('login-form');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+const btnLogin     = document.getElementById('btn-login');
+const toast        = document.getElementById('toast');
+
+// ── Toast helper ──────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'error') {
+  clearTimeout(toastTimer);
+  toast.textContent = msg;
+  toast.className = 'toast ' + type + ' show';
+  toastTimer = setTimeout(() => {
+    toast.classList.remove('show');
+  }, 2800);
+}
+
+// ── Shake an element ──────────────────────────────────
+function shakeElement(el) {
+  el.classList.remove('shake');
+  void el.offsetWidth; // force reflow
+  el.classList.add('shake');
+}
+
+// ── Form submit ──────────────────────────────────────
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value.trim();
+
+  // Validate
+  if (!username) {
+    showToast('请输入用户名');
+    shakeElement(document.getElementById('group-username'));
+    usernameInput.focus();
+    return;
+  }
+  if (!password) {
+    showToast('请输入密码');
+    shakeElement(document.getElementById('group-password'));
+    passwordInput.focus();
+    return;
+  }
+
+  // Simulate loading
+  btnLogin.classList.add('loading');
+  btnLogin.textContent = '';
+
+  // Simulate network delay (350–650ms)
+  const delay = 350 + Math.random() * 300;
+  await new Promise(r => setTimeout(r, delay));
+
+  // Check credentials
+  if (username === 'admin' && password === '123456') {
+    // Success
+    btnLogin.classList.remove('loading');
+    btnLogin.textContent = '✓ 登录成功';
+    btnLogin.style.background = 'linear-gradient(135deg, var(--soft-green), #7CB892)';
+    showToast('登录成功，正在跳转…', 'success');
+
+    // Remember me
+    if (document.getElementById('remember').checked) {
+      try { localStorage.setItem('homeschool_user', username); } catch(_){}
+    }
+
+    // Redirect after brief pause
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 900);
+
+  } else {
+    // Failure
+    btnLogin.classList.remove('loading');
+    btnLogin.textContent = '登 录';
+    showToast('用户名或密码错误，请重试');
+    shakeElement(document.querySelector('.login-card'));
+
+    // Reset inputs
+    passwordInput.value = '';
+    passwordInput.focus();
+  }
+});
+
+// ── Enter key quick-submit ────────────────────────────
+usernameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') passwordInput.focus();
+});
+passwordInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') form.dispatchEvent(new Event('submit'));
+});
+
+// ── Forgot password link ─────────────────────────────
+document.getElementById('forgot-link').addEventListener('click', () => {
+  showToast('请联系班级老师重置密码 📩', 'success');
+});
+
+// ── Register link ────────────────────────────────────
+document.getElementById('register-link').addEventListener('click', () => {
+  showToast('注册功能即将开放，敬请期待 🌟', 'success');
+});
+
+// ── Pre-fill remembered user ─────────────────────────
+try {
+  const savedUser = localStorage.getItem('homeschool_user');
+  if (savedUser) {
+    usernameInput.value = savedUser;
+    document.getElementById('remember').checked = true;
+    passwordInput.focus();
+  }
+} catch(_){}
+</script>
+
+</body>
+</html>
